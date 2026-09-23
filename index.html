@@ -242,7 +242,7 @@
   #sofa{ width:100%; height:100%; display:block; }
   .sleepy-cat{
     position:absolute;
-    bottom:64%;
+    bottom:45%;
     width:26%;
     cursor:pointer;
     transition:transform .12s ease;
@@ -353,6 +353,107 @@
 (function(){
   "use strict";
 
+  /* ---------- shared sound effects (synthesized, no audio files needed) ---------- */
+  let audioCtx = null;
+  function getAudioCtx(){
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playBoop(){
+    try{
+      const ctx = getAudioCtx();
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(520, now);
+      osc.frequency.exponentialRampToValueAtTime(360, now + 0.09);
+      gain.gain.setValueAtTime(0.22, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.11);
+    }catch(e){}
+  }
+
+  function playMunch(){
+    try{
+      const ctx = getAudioCtx();
+      const now = ctx.currentTime;
+      // two quick crunchy chomps: filtered noise burst + a soft low thump each
+      [0, 0.09].forEach((delay)=>{
+        const t0 = now + delay;
+        const bufSize = Math.floor(ctx.sampleRate * 0.08);
+        const buffer = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for(let i=0;i<bufSize;i++){ data[i] = (Math.random()*2-1); }
+        const noise = ctx.createBufferSource();
+        noise.buffer = buffer;
+        const bandpass = ctx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.value = 900;
+        bandpass.Q.value = 0.8;
+        const ng = ctx.createGain();
+        ng.gain.setValueAtTime(0.35, t0);
+        ng.gain.exponentialRampToValueAtTime(0.001, t0 + 0.08);
+        noise.connect(bandpass); bandpass.connect(ng); ng.connect(ctx.destination);
+        noise.start(t0); noise.stop(t0 + 0.08);
+
+        const thump = ctx.createOscillator();
+        thump.type = 'sine';
+        thump.frequency.setValueAtTime(160, t0);
+        thump.frequency.exponentialRampToValueAtTime(90, t0 + 0.07);
+        const tg = ctx.createGain();
+        tg.gain.setValueAtTime(0.25, t0);
+        tg.gain.exponentialRampToValueAtTime(0.001, t0 + 0.08);
+        thump.connect(tg); tg.connect(ctx.destination);
+        thump.start(t0); thump.stop(t0 + 0.08);
+      });
+    }catch(e){}
+  }
+
+  function playMeow(opts){
+    try{
+      const ctx = getAudioCtx();
+      const now = ctx.currentTime;
+      const o = Object.assign({ startFreq:420, peakFreq:680, endFreq:340, dur:0.42, peakAt:0.16, gain:0.3 }, opts||{});
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(o.startFreq, now);
+      osc.frequency.linearRampToValueAtTime(o.peakFreq, now + o.peakAt);
+      osc.frequency.linearRampToValueAtTime(o.endFreq, now + o.dur);
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1200, now);
+      filter.frequency.linearRampToValueAtTime(1800, now + o.peakAt);
+      filter.frequency.linearRampToValueAtTime(700, now + o.dur);
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(o.gain, now + 0.05);
+      gain.gain.linearRampToValueAtTime(o.gain * 0.7, now + o.peakAt);
+      gain.gain.linearRampToValueAtTime(0, now + o.dur);
+
+      osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + o.dur + 0.02);
+    }catch(e){}
+  }
+
+  function playDoorMeow(){
+    // brighter, more urgent meow — "oops!"
+    playMeow({ startFreq:460, peakFreq:760, endFreq:380, dur:0.4, peakAt:0.14, gain:0.32 });
+  }
+
+  function playMissedMeow(){
+    // lower, slower, softer — a disappointed little meow
+    playMeow({ startFreq:320, peakFreq:440, endFreq:230, dur:0.6, peakAt:0.22, gain:0.22 });
+  }
+
   /* ---------- simple router ---------- */
   const pages = document.querySelectorAll('.page');
   function showPage(id){
@@ -411,8 +512,8 @@
       <rect x="2" y="35" width="56" height="108" rx="26" fill="#a9764f" stroke="#2e2a26" stroke-width="5"/>
       <rect x="242" y="35" width="56" height="108" rx="26" fill="#a9764f" stroke="#2e2a26" stroke-width="5"/>
       <rect x="42" y="8" width="216" height="55" rx="22" fill="#c9975f" stroke="#2e2a26" stroke-width="5"/>
-      <rect x="48" y="62" width="98" height="68" rx="18" fill="#a9764f" stroke="#2e2a26" stroke-width="5"/>
-      <rect x="152" y="62" width="98" height="68" rx="18" fill="#a9764f" stroke="#2e2a26" stroke-width="5"/>
+      <rect x="48" y="96" width="98" height="34" rx="14" fill="#a9764f" stroke="#2e2a26" stroke-width="5"/>
+      <rect x="152" y="96" width="98" height="34" rx="14" fill="#a9764f" stroke="#2e2a26" stroke-width="5"/>
       <line x1="14" y1="145" x2="14" y2="165" stroke="#2e2a26" stroke-width="6" stroke-linecap="round"/>
       <line x1="60" y1="145" x2="60" y2="165" stroke="#2e2a26" stroke-width="6" stroke-linecap="round"/>
       <line x1="240" y1="145" x2="240" y2="165" stroke="#2e2a26" stroke-width="6" stroke-linecap="round"/>
@@ -424,8 +525,8 @@
     return `<svg viewBox="-10 -20 460 300" style="width:100%;display:block;">
       <path d="M 135 28 C 230 22, 290 35, 300 52 C 312 32, 328 28, 338 48 C 362 58, 398 85, 410 118 C 414 152, 406 188, 383 215 C 353 232, 318 236, 278 232 C 198 245, 118 248, 58 225 C 18 195, 6 150, 18 100 C 33 60, 68 32, 135 28 Z"
             fill="${fill}" stroke="#2e2a26" stroke-width="7" stroke-linejoin="round"/>
-      <path d="M 350 230 C 390 245, 430 240, 440 215 C 446 188, 430 168, 408 175 C 398 192, 408 205, 400 212"
-            fill="none" stroke="#2e2a26" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M 352 231 C 390 245, 430 240, 440 215 C 446 188, 430 168, 408 175 C 398 192, 408 205, 392 214 Z"
+            fill="${fill}" stroke="#2e2a26" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
       <path d="M 197 165 Q 230 155, 255 185 Q 270 215, 250 225" fill="none" stroke="#2e2a26" stroke-width="5.5" stroke-linecap="round"/>
       <path d="M 345 140 Q 355 133, 367 140" fill="none" stroke="#2e2a26" stroke-width="5" stroke-linecap="round"/>
       <path d="M 378 144 Q 388 137, 398 144" fill="none" stroke="#2e2a26" stroke-width="5" stroke-linecap="round"/>
@@ -513,6 +614,10 @@
   function pauseGame(){
     running = false;
     if(rafId) cancelAnimationFrame(rafId);
+    resetRound();
+    overlayTitle.textContent = "Ready?";
+    overlaySub.textContent = "Tap anywhere to start";
+    overlay.classList.remove('hidden');
   }
 
   function endRound(reason){
@@ -587,6 +692,7 @@
         o.el.remove();
         objects.splice(i,1);
         if(wasGrass){
+          playMissedMeow();
           missedGrass++;
           missesEl.textContent = missedGrass + ' / ' + MAX_MISSES;
           if(missedGrass >= MAX_MISSES){
@@ -604,11 +710,13 @@
           showFloatPts(x, o.y);
           o.el.remove();
           objects.splice(i,1);
+          playMunch();
         } else {
           o.el.remove();
           objects.splice(i,1);
           catEl.classList.add('bump');
           setTimeout(()=>catEl.classList.remove('bump'), 350);
+          playDoorMeow();
           endRound('door');
           return;
         }
@@ -623,16 +731,18 @@
     if(!running) return;
     laneIndex = Math.max(0, laneIndex-1);
     positionCat();
+    playBoop();
   });
   document.getElementById('rightBtn').addEventListener('click', ()=>{
     if(!running) return;
     laneIndex = Math.min(LANES-1, laneIndex+1);
     positionCat();
+    playBoop();
   });
   document.addEventListener('keydown', (e)=>{
     if(document.getElementById('game').classList.contains('active') && running){
-      if(e.key === 'ArrowLeft'){ laneIndex = Math.max(0, laneIndex-1); positionCat(); }
-      if(e.key === 'ArrowRight'){ laneIndex = Math.min(LANES-1, laneIndex+1); positionCat(); }
+      if(e.key === 'ArrowLeft'){ laneIndex = Math.max(0, laneIndex-1); positionCat(); playBoop(); }
+      if(e.key === 'ArrowRight'){ laneIndex = Math.min(LANES-1, laneIndex+1); positionCat(); playBoop(); }
     }
   });
 
@@ -652,11 +762,9 @@
     </div>
   `;
 
-  let audioCtx = null;
   function playPurr(){
     try{
-      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-      if(audioCtx.state === 'suspended') audioCtx.resume();
+      const audioCtx = getAudioCtx();
       const duration = 1.0;
       const bufferSize = Math.floor(audioCtx.sampleRate * duration);
       const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
