@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Cat Mini-App</title>
+
+<!-- iOS PWA metadata -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cat App">
+<meta name="theme-color" content="#fdf6e9">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --cream:#fdf6e9;
+    --ink:#2e2a26;
+    --grid:#e9e4d8;
+    --pink:#ff9fb2;
+    --orange:#ffa94d;
+    --green:#8fd694;
+    --blue:#8ecbe6;
+    --purple:#c9a6e8;
+    --red:#ff6b6b;
+    box-sizing:border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    height:100%;
+    margin:0;
+    overscroll-behavior:none;
+    background:var(--cream);
+    font-family:'Patrick Hand', 'Comic Sans MS', cursive, sans-serif;
+    color:var(--ink);
+    -webkit-tap-highlight-color: transparent;
+    user-select:none;
+  }
+  body{ overflow:hidden; }
+  #app{ height:100%; width:100%; position:relative; }
+  .page{ position:absolute; inset:0; display:none; flex-direction:column; height:100%; width:100%; }
+  .page.active{ display:flex; }
+
+  /* ---------- HOME ---------- */
+  #home{
+    align-items:center;
+    justify-content:center;
+    gap:22px;
+    padding:24px;
+    background:var(--cream);
+  }
+  #home h1{
+    font-size:2rem;
+    margin:0 0 10px 0;
+    text-align:center;
+    line-height:1.3;
+  }
+  .menu-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:18px;
+    width:100%;
+    max-width:480px;
+  }
+  .menu-btn{
+    border:3px solid var(--ink);
+    border-radius:22px 24px 20px 26px / 24px 20px 26px 22px;
+    padding:32px 10px;
+    font-family:inherit;
+    font-size:1.5rem;
+    color:var(--ink);
+    background:var(--pink);
+    box-shadow:4px 4px 0 var(--ink);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+    min-height:150px;
+    cursor:pointer;
+    transition:transform .08s ease;
+  }
+  .menu-btn:active{ transform:translate(3px,3px); box-shadow:1px 1px 0 var(--ink); }
+  .menu-btn .emoji{ font-size:2.6rem; }
+  .menu-btn.b2{ background:var(--orange); }
+  .menu-btn.b3{ background:var(--blue); }
+  .menu-btn.b4{ background:var(--purple); }
+  #toast{
+    position:absolute; bottom:36px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:var(--cream); padding:10px 18px; border-radius:16px;
+    font-size:1rem; opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  #toast.show{ opacity:1; }
+
+  /* ---------- GAME ---------- */
+  #game{ background:#fff; }
+  .hud{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:10px 16px; font-size:1.2rem; flex-shrink:0;
+  }
+  .home-link{
+    border:2px solid var(--ink); border-radius:14px; background:var(--cream);
+    padding:4px 10px; font-family:inherit; font-size:1.4rem; box-shadow:2px 2px 0 var(--ink);
+  }
+  .avatar-row{ display:flex; justify-content:center; gap:18px; padding:4px 0 8px; flex-shrink:0; }
+  .avatar-btn{
+    width:52px; height:52px; border-radius:50%; border:3px solid transparent;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--grid); cursor:pointer;
+  }
+  .avatar-btn.selected{ border-color:var(--red); background:#fff5e0; }
+  .avatar-btn svg{ width:36px; height:36px; }
+  .misses-row{ text-align:center; font-size:0.95rem; opacity:.7; padding-bottom:6px; flex-shrink:0; }
+
+  #playfield{
+    position:relative;
+    flex:1;
+    min-height:0;
+    margin:0 12px;
+    border:3px solid var(--ink);
+    border-radius:26px;
+    overflow:hidden;
+    background-image:
+      linear-gradient(var(--grid) 2px, transparent 2px),
+      linear-gradient(90deg, var(--grid) 2px, transparent 2px);
+    background-size:44px 44px;
+    background-color:#fff;
+    touch-action:none;
+  }
+  .lane-obj{
+    position:absolute;
+    width:56px; height:56px;
+    transform:translate(-50%,-50%);
+    will-change:transform;
+  }
+  .lane-obj svg{ width:100%; height:100%; overflow:visible; }
+  #cat{
+    position:absolute;
+    width:64px; height:64px;
+    transform:translate(-50%,-50%);
+    transition:left .12s ease;
+  }
+  #cat svg{ width:100%; height:100%; overflow:visible; }
+  #cat.bump{ animation:bump .35s ease; }
+  @keyframes bump{ 0%{transform:translate(-50%,-50%) rotate(0);} 50%{transform:translate(-50%,-50%) rotate(-14deg) scale(0.9);} 100%{transform:translate(-50%,-50%) rotate(0);} }
+
+  #overlay{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:10px;
+    background:rgba(253,246,233,0.92); text-align:center; padding:20px;
+  }
+  #overlay h2{ margin:0; font-size:1.8rem; }
+  #overlay p{ margin:0; font-size:1.1rem; opacity:.75; }
+  #overlay.hidden{ display:none; }
+
+  .controls{
+    display:flex; justify-content:space-between; padding:16px 20px calc(16px + env(safe-area-inset-bottom,0px));
+    flex-shrink:0; gap:16px;
+  }
+  .arrow-btn{
+    flex:1; max-width:150px;
+    height:70px;
+    border:3px solid var(--ink);
+    border-radius:20px;
+    background:var(--green);
+    font-size:1.8rem;
+    box-shadow:3px 3px 0 var(--ink);
+  }
+  .arrow-btn:active{ transform:translate(2px,2px); box-shadow:1px 1px 0 var(--ink); }
+
+  .float-pts{
+    position:absolute; font-size:1.1rem; font-weight:bold; color:var(--green);
+    pointer-events:none; animation:floatUp .6s ease forwards;
+  }
+  @keyframes floatUp{ to{ transform:translateY(-40px); opacity:0; } }
+
+  /* ---------- PET CAT ---------- */
+  #pet{ background:var(--cream); align-items:center; }
+  #pet .hud{ width:100%; justify-content:flex-start; gap:14px; }
+  #pet h1{ font-size:1.5rem; margin:6px 0 0 0; }
+
+  /* ---------- VOICE NOTES ---------- */
+  #voice{ background:var(--cream); align-items:center; }
+  #voice .sub{ margin:0 0 6px 0; opacity:.7; font-size:1rem; text-align:center; }
+  #voice h1{ font-size:1.4rem; margin:6px 0 0 0; text-align:center; padding:0 10px; }
+  #voiceScene{
+    flex:1; width:100%;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .mic-btn{
+    width:150px; height:150px;
+    border-radius:50%;
+    border:4px solid var(--ink);
+    background:var(--blue);
+    box-shadow:5px 5px 0 var(--ink);
+    display:flex; align-items:center; justify-content:center;
+    font-size:4rem;
+    cursor:pointer;
+    transition:transform .1s ease;
+  }
+  .mic-btn:active{ transform:translate(3px,3px) scale(0.97); box-shadow:2px 2px 0 var(--ink); }
+  .mic-btn.playing{ animation:micPulse .5s ease infinite; }
+  @keyframes micPulse{
+    0%,100%{ transform:scale(1); }
+    50%{ transform:scale(1.06); }
+  }
+  #voiceHint{ margin-top:18px; text-align:center; opacity:.65; font-size:.95rem; }
+
+  /* ---------- BORED ---------- */
+  #bored{ background:var(--cream); }
+  #bored .bored-wrap{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+  }
+  #bored .bored-text{
+    font-size:2.2rem;
+    text-align:center;
+    line-height:1.4;
+    transform:rotate(-1deg);
+  }
+  #pet .sub{ margin:0 0 10px 0; opacity:.7; font-size:1rem; }
+  #petScene{
+    position:relative;
+    flex:1; width:100%;
+    display:flex; align-items:center; justify-content:center;
+    padding-bottom:10px;
+  }
+  #sofaWrap{
+    position:relative;
+    width:min(92%, 480px);
+    aspect-ratio: 300 / 175;
+  }
+  #sofa{ width:100%; height:100%; display:block; }
+  .sleepy-cat{
+    position:absolute;
+    bottom:64%;
+    width:26%;
+    cursor:pointer;
+    transition:transform .12s ease;
+  }
+  .sleepy-cat:active{ transform:scale(0.94); }
+  .sleepy-cat.left{ left:19%; }
+  .sleepy-cat.right{ right:20%; transform:scaleX(-1); }
+  .sleepy-cat.right:active{ transform:scaleX(-1) scale(0.94); }
+  .sleepy-cat.purring{ animation:purrWiggle .28s ease infinite; }
+  @keyframes purrWiggle{
+    0%,100%{ transform:translateY(0) scaleX(var(--flip,1)); }
+    50%{ transform:translateY(-2px) scaleX(var(--flip,1)); }
+  }
+  .sleepy-cat.right.purring{ --flip:-1; }
+  .heart{
+    position:absolute;
+    font-size:1.8rem;
+    pointer-events:none;
+    animation:heartFloat 1s ease forwards;
+  }
+  @keyframes heartFloat{
+    0%{ transform:translate(-50%,0) scale(0.6); opacity:0; }
+    20%{ opacity:1; transform:translate(-50%,-6px) scale(1.1); }
+    100%{ transform:translate(-50%,-56px) scale(1); opacity:0; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HOME PAGE -->
+  <section id="home" class="page active">
+    <h1>Hi bini nini cutie 💕</h1>
+    <div class="menu-grid">
+      <button class="menu-btn b1" data-go="game"><span class="emoji">🏃</span>Game</button>
+      <button class="menu-btn b2" data-go="pet"><span class="emoji">🐈</span>Pet Cat</button>
+      <button class="menu-btn b3" data-go="voice"><span class="emoji">🎙️</span>Voice Notes</button>
+      <button class="menu-btn b4" data-go="bored"><span class="emoji">💭</span>Bored?</button>
+    </div>
+    <div id="toast"></div>
+  </section>
+
+  <!-- GAME PAGE -->
+  <section id="game" class="page">
+    <div class="hud">
+      <button class="home-link" id="toHome">🏠</button>
+      <div>Score: <span id="score">0</span></div>
+      <div>High: <span id="highscore">0</span></div>
+    </div>
+
+    <div class="avatar-row">
+      <button class="avatar-btn selected" id="avatarWhite" data-color="#ffffff"></button>
+      <button class="avatar-btn" id="avatarOrange" data-color="#ffa94d"></button>
+    </div>
+    <div class="misses-row">🌱 missed: <span id="misses">0 / 2</span></div>
+
+    <div id="playfield">
+      <div id="cat"></div>
+      <div id="overlay">
+        <h2 id="overlayTitle">Ready?</h2>
+        <p id="overlaySub">Tap anywhere to start</p>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="arrow-btn" id="leftBtn">◀</button>
+      <button class="arrow-btn" id="rightBtn">▶</button>
+    </div>
+  </section>
+
+  <!-- PET CAT PAGE -->
+  <section id="pet" class="page">
+    <div class="hud">
+      <button class="home-link" data-go="home">🏠</button>
+    </div>
+    <h1>😴 Pet the Cats</h1>
+    <p class="sub">tap a cat to pet it</p>
+    <div id="petScene"></div>
+  </section>
+
+  <!-- VOICE NOTES PAGE -->
+  <section id="voice" class="page">
+    <div class="hud">
+      <button class="home-link" data-go="home">🏠</button>
+    </div>
+    <h1>Click to listen to a voice note.</h1>
+    <div id="voiceScene">
+      <div style="display:flex; flex-direction:column; align-items:center;">
+        <button class="mic-btn" id="micBtn">🎙️</button>
+        <div id="voiceHint">tap the mic</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BORED PAGE -->
+  <section id="bored" class="page">
+    <div class="hud">
+      <button class="home-link" data-go="home">🏠</button>
+    </div>
+    <div class="bored-wrap">
+      <p class="bored-text">Call kar ki ma mala 😛</p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- simple router ---------- */
+  const pages = document.querySelectorAll('.page');
+  function showPage(id){
+    pages.forEach(p => p.classList.toggle('active', p.id === id));
+  }
+  document.querySelectorAll('[data-go]').forEach(btn=>{
+    btn.addEventListener('click', ()=> showPage(btn.dataset.go));
+  });
+  document.getElementById('toHome').addEventListener('click', ()=>{
+    pauseGame();
+    showPage('home');
+  });
+
+  let toastTimer;
+  document.querySelectorAll('[data-soon]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const t = document.getElementById('toast');
+      t.textContent = btn.dataset.soon + " — coming soon!";
+      t.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(()=> t.classList.remove('show'), 1200);
+    });
+  });
+
+  /* ---------- cat SVG (doodle) ---------- */
+  function catSVG(fill){
+    return `<svg viewBox="0 0 100 100">
+      <ellipse cx="50" cy="62" rx="30" ry="24" fill="${fill}" stroke="#2e2a26" stroke-width="4"/>
+      <path d="M22 40 L30 14 L42 38 Z" fill="${fill}" stroke="#2e2a26" stroke-width="4" stroke-linejoin="round"/>
+      <path d="M78 40 L70 14 L58 38 Z" fill="${fill}" stroke="#2e2a26" stroke-width="4" stroke-linejoin="round"/>
+      <circle cx="38" cy="56" r="4.5" fill="#2e2a26"/>
+      <circle cx="62" cy="56" r="4.5" fill="#2e2a26"/>
+      <path d="M46 66 Q50 70 54 66" stroke="#2e2a26" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M20 66 Q10 60 8 68" stroke="#2e2a26" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M22 72 Q10 70 9 78" stroke="#2e2a26" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M80 66 Q90 60 92 68" stroke="#2e2a26" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M78 72 Q90 70 91 78" stroke="#2e2a26" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </svg>`;
+  }
+  function grassSVG(){
+    return `<svg viewBox="0 0 100 100">
+      <path d="M50 90 Q46 60 30 30" stroke="#3a9c4a" stroke-width="8" fill="none" stroke-linecap="round"/>
+      <path d="M50 90 Q52 55 50 15" stroke="#4bb85f" stroke-width="8" fill="none" stroke-linecap="round"/>
+      <path d="M50 90 Q56 60 72 32" stroke="#3a9c4a" stroke-width="8" fill="none" stroke-linecap="round"/>
+    </svg>`;
+  }
+  function doorSVG(){
+    return `<svg viewBox="0 0 100 100">
+      <rect x="26" y="10" rx="18" ry="18" width="48" height="82" fill="#a97455" stroke="#2e2a26" stroke-width="4"/>
+      <circle cx="60" cy="52" r="4" fill="#2e2a26"/>
+    </svg>`;
+  }
+
+  function sofaSVG(){
+    return `<svg viewBox="0 0 300 175" style="width:100%;display:block;">
+      <rect x="2" y="35" width="56" height="108" rx="26" fill="#a9764f" stroke="#2e2a26" stroke-width="5"/>
+      <rect x="242" y="35" width="56" height="108" rx="26" fill="#a9764f" stroke="#2e2a26" stroke-width="5"/>
+      <rect x="42" y="8" width="216" height="55" rx="22" fill="#c9975f" stroke="#2e2a26" stroke-width="5"/>
+      <rect x="48" y="62" width="98" height="68" rx="18" fill="#a9764f" stroke="#2e2a26" stroke-width="5"/>
+      <rect x="152" y="62" width="98" height="68" rx="18" fill="#a9764f" stroke="#2e2a26" stroke-width="5"/>
+      <line x1="14" y1="145" x2="14" y2="165" stroke="#2e2a26" stroke-width="6" stroke-linecap="round"/>
+      <line x1="60" y1="145" x2="60" y2="165" stroke="#2e2a26" stroke-width="6" stroke-linecap="round"/>
+      <line x1="240" y1="145" x2="240" y2="165" stroke="#2e2a26" stroke-width="6" stroke-linecap="round"/>
+      <line x1="286" y1="145" x2="286" y2="165" stroke="#2e2a26" stroke-width="6" stroke-linecap="round"/>
+    </svg>`;
+  }
+
+  function sleepingCatSVG(fill){
+    return `<svg viewBox="-10 -20 460 300" style="width:100%;display:block;">
+      <path d="M 135 28 C 230 22, 290 35, 300 52 C 312 32, 328 28, 338 48 C 362 58, 398 85, 410 118 C 414 152, 406 188, 383 215 C 353 232, 318 236, 278 232 C 198 245, 118 248, 58 225 C 18 195, 6 150, 18 100 C 33 60, 68 32, 135 28 Z"
+            fill="${fill}" stroke="#2e2a26" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M 350 230 C 390 245, 430 240, 440 215 C 446 188, 430 168, 408 175 C 398 192, 408 205, 400 212"
+            fill="none" stroke="#2e2a26" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M 197 165 Q 230 155, 255 185 Q 270 215, 250 225" fill="none" stroke="#2e2a26" stroke-width="5.5" stroke-linecap="round"/>
+      <path d="M 345 140 Q 355 133, 367 140" fill="none" stroke="#2e2a26" stroke-width="5" stroke-linecap="round"/>
+      <path d="M 378 144 Q 388 137, 398 144" fill="none" stroke="#2e2a26" stroke-width="5" stroke-linecap="round"/>
+      <line x1="305" y1="112" x2="332" y2="120" stroke="#2e2a26" stroke-width="4" stroke-linecap="round"/>
+      <line x1="300" y1="125" x2="330" y2="135" stroke="#2e2a26" stroke-width="4" stroke-linecap="round"/>
+      <line x1="297" y1="139" x2="327" y2="149" stroke="#2e2a26" stroke-width="4" stroke-linecap="round"/>
+      <line x1="365" y1="157" x2="375" y2="157" stroke="#2e2a26" stroke-width="4.5" stroke-linecap="round"/>
+      <line x1="370" y1="157" x2="370" y2="167" stroke="#2e2a26" stroke-width="4.5" stroke-linecap="round"/>
+    </svg>`;
+  }
+
+  const catEl = document.getElementById('cat');
+  const playfield = document.getElementById('playfield');
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlaySub = document.getElementById('overlaySub');
+  const scoreEl = document.getElementById('score');
+  const highEl = document.getElementById('highscore');
+  const missesEl = document.getElementById('misses');
+
+  let catColor = '#ffffff';
+  catEl.innerHTML = catSVG(catColor);
+
+  document.getElementById('avatarWhite').addEventListener('click', ()=> selectAvatar('#ffffff', 'avatarWhite'));
+  document.getElementById('avatarOrange').addEventListener('click', ()=> selectAvatar('#ffa94d', 'avatarOrange'));
+  function selectAvatar(color, id){
+    catColor = color;
+    catEl.innerHTML = catSVG(color);
+    document.querySelectorAll('.avatar-btn').forEach(b=>b.classList.remove('selected'));
+    document.getElementById(id).classList.add('selected');
+  }
+
+  /* ---------- game state ---------- */
+  const LANES = 3;
+  let laneIndex = 1;
+  let score = 0;
+  let highScore = parseInt(localStorage.getItem('catapp_highscore') || '0', 10);
+  highEl.textContent = highScore;
+
+  let running = false;
+  let objects = []; // {el, lane, y, type}
+  let spawnTimer = 0;
+  let spawnInterval = 1100; // ms, shrinks over time
+  let fallSpeed = 0.10; // px per ms (of field height fraction)
+  let elapsed = 0;
+  let rafId = null;
+  let lastTs = null;
+  let missedGrass = 0;
+  const MAX_MISSES = 2;
+
+  function laneX(lane){
+    const w = playfield.clientWidth;
+    return (w / (LANES+1)) * (lane+1);
+  }
+  function catY(){ return playfield.clientHeight - 60; }
+
+  function positionCat(){
+    catEl.style.left = laneX(laneIndex) + 'px';
+    catEl.style.top = catY() + 'px';
+  }
+  window.addEventListener('resize', positionCat);
+
+  function resetRound(){
+    objects.forEach(o=>o.el.remove());
+    objects = [];
+    score = 0;
+    scoreEl.textContent = '0';
+    laneIndex = 1;
+    spawnInterval = 1100;
+    fallSpeed = 0.14;
+    elapsed = 0;
+    missedGrass = 0;
+    missesEl.textContent = missedGrass + ' / ' + MAX_MISSES;
+    positionCat();
+  }
+
+  function startRound(){
+    resetRound();
+    running = true;
+    overlay.classList.add('hidden');
+    lastTs = null;
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function pauseGame(){
+    running = false;
+    if(rafId) cancelAnimationFrame(rafId);
+  }
+
+  function endRound(reason){
+    running = false;
+    if(rafId) cancelAnimationFrame(rafId);
+    if(score > highScore){
+      highScore = score;
+      localStorage.setItem('catapp_highscore', String(highScore));
+      highEl.textContent = highScore;
+    }
+    const titles = {
+      door: "Oops, wrong door!",
+      missed: "Too much grass got away!",
+      default: "Round over"
+    };
+    overlayTitle.textContent = titles[reason] || titles.default;
+    overlaySub.textContent = "Score: " + score + " — tap to play again";
+    overlay.classList.remove('hidden');
+  }
+
+  function spawnObject(){
+    const lane = Math.floor(Math.random()*LANES);
+    const isDoor = Math.random() < 0.38;
+    const el = document.createElement('div');
+    el.className = 'lane-obj';
+    el.innerHTML = isDoor ? doorSVG() : grassSVG();
+    playfield.appendChild(el);
+    objects.push({ el, lane, y: -40, type: isDoor ? 'door' : 'grass' });
+  }
+
+  function showFloatPts(x,y){
+    const f = document.createElement('div');
+    f.className = 'float-pts';
+    f.textContent = '+10';
+    f.style.left = x + 'px';
+    f.style.top = y + 'px';
+    playfield.appendChild(f);
+    setTimeout(()=> f.remove(), 650);
+  }
+
+  function tick(ts){
+    if(!running) return;
+    if(lastTs === null) lastTs = ts;
+    const dt = ts - lastTs;
+    lastTs = ts;
+    elapsed += dt;
+
+    // difficulty ramps up gradually the longer the round lasts
+    fallSpeed = 0.14 + Math.min(elapsed / 9000, 1) * 0.16;
+    spawnInterval = Math.max(1100 - elapsed/40, 550);
+
+    spawnTimer += dt;
+    if(spawnTimer > spawnInterval){
+      spawnTimer = 0;
+      spawnObject();
+    }
+
+    const fieldH = playfield.clientHeight;
+    const cy = catY();
+    const cx = laneX(laneIndex);
+    const hitRadius = 34;
+
+    for(let i = objects.length-1; i>=0; i--){
+      const o = objects[i];
+      o.y += fallSpeed * dt;
+      const x = laneX(o.lane);
+      o.el.style.left = x + 'px';
+      o.el.style.top = o.y + 'px';
+
+      if(o.y > fieldH + 60){
+        const wasGrass = o.type === 'grass';
+        o.el.remove();
+        objects.splice(i,1);
+        if(wasGrass){
+          missedGrass++;
+          missesEl.textContent = missedGrass + ' / ' + MAX_MISSES;
+          if(missedGrass >= MAX_MISSES){
+            endRound('missed');
+            return;
+          }
+        }
+        continue;
+      }
+
+      if(o.lane === laneIndex && Math.abs(o.y - cy) < hitRadius){
+        if(o.type === 'grass'){
+          score += 10;
+          scoreEl.textContent = score;
+          showFloatPts(x, o.y);
+          o.el.remove();
+          objects.splice(i,1);
+        } else {
+          o.el.remove();
+          objects.splice(i,1);
+          catEl.classList.add('bump');
+          setTimeout(()=>catEl.classList.remove('bump'), 350);
+          endRound('door');
+          return;
+        }
+      }
+    }
+
+    rafId = requestAnimationFrame(tick);
+  }
+
+  /* ---------- controls ---------- */
+  document.getElementById('leftBtn').addEventListener('click', ()=>{
+    if(!running) return;
+    laneIndex = Math.max(0, laneIndex-1);
+    positionCat();
+  });
+  document.getElementById('rightBtn').addEventListener('click', ()=>{
+    if(!running) return;
+    laneIndex = Math.min(LANES-1, laneIndex+1);
+    positionCat();
+  });
+  document.addEventListener('keydown', (e)=>{
+    if(document.getElementById('game').classList.contains('active') && running){
+      if(e.key === 'ArrowLeft'){ laneIndex = Math.max(0, laneIndex-1); positionCat(); }
+      if(e.key === 'ArrowRight'){ laneIndex = Math.min(LANES-1, laneIndex+1); positionCat(); }
+    }
+  });
+
+  overlay.addEventListener('click', ()=>{ if(!running) startRound(); });
+  playfield.addEventListener('touchstart', (e)=>{ e.preventDefault(); if(!running) startRound(); }, {passive:false});
+
+  // initial layout
+  positionCat();
+
+  /* ---------- PET CAT ---------- */
+  const petScene = document.getElementById('petScene');
+  petScene.innerHTML = `
+    <div id="sofaWrap">
+      <div id="sofa">${sofaSVG()}</div>
+      <div class="sleepy-cat left" id="catLeft">${sleepingCatSVG('#ffffff')}</div>
+      <div class="sleepy-cat right" id="catRight">${sleepingCatSVG('#ffa94d')}</div>
+    </div>
+  `;
+
+  let audioCtx = null;
+  function playPurr(){
+    try{
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if(audioCtx.state === 'suspended') audioCtx.resume();
+      const duration = 1.0;
+      const bufferSize = Math.floor(audioCtx.sampleRate * duration);
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for(let i=0;i<bufferSize;i++){ data[i] = (Math.random()*2-1); }
+
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+
+      const lowpass = audioCtx.createBiquadFilter();
+      lowpass.type = 'lowpass';
+      lowpass.frequency.value = 350;
+
+      const lfo = audioCtx.createOscillator();
+      lfo.frequency.value = 26; // purr rumble rate
+      const lfoGain = audioCtx.createGain();
+      lfoGain.gain.value = 0.45;
+
+      const mainGain = audioCtx.createGain();
+      const now = audioCtx.currentTime;
+      mainGain.gain.setValueAtTime(0, now);
+      mainGain.gain.linearRampToValueAtTime(0.4, now + 0.1);
+      mainGain.gain.linearRampToValueAtTime(0, now + duration);
+
+      lfo.connect(lfoGain);
+      lfoGain.connect(mainGain.gain);
+      noise.connect(lowpass);
+      lowpass.connect(mainGain);
+      mainGain.connect(audioCtx.destination);
+
+      lfo.start(now);
+      noise.start(now);
+      lfo.stop(now + duration);
+      noise.stop(now + duration);
+    }catch(e){ /* audio not available, fail silently */ }
+  }
+
+  function spawnHeart(targetEl){
+    const heart = document.createElement('div');
+    heart.className = 'heart';
+    heart.textContent = '💕';
+    const rect = targetEl.getBoundingClientRect();
+    const sceneRect = petScene.getBoundingClientRect();
+    heart.style.left = (rect.left - sceneRect.left + rect.width/2) + 'px';
+    heart.style.top = (rect.top - sceneRect.top) + 'px';
+    petScene.appendChild(heart);
+    setTimeout(()=> heart.remove(), 1000);
+  }
+
+  function petCat(el){
+    el.classList.add('purring');
+    spawnHeart(el);
+    playPurr();
+    setTimeout(()=> el.classList.remove('purring'), 1000);
+  }
+
+  document.getElementById('catLeft').addEventListener('click', ()=> petCat(document.getElementById('catLeft')));
+  document.getElementById('catRight').addEventListener('click', ()=> petCat(document.getElementById('catRight')));
+
+  /* ---------- VOICE NOTES ---------- */
+  // File list: placeholders for now — swap these files in sounds/ later and this list
+  // (and the count in manifest below) is the only thing to update.
+  const VOICE_NOTE_COUNT = 12;
+  const voiceNotes = Array.from({length: VOICE_NOTE_COUNT}, (_, i) =>
+    `sounds/placeholder_${String(i+1).padStart(2,'0')}.mp3`
+  );
+
+  const micBtn = document.getElementById('micBtn');
+  const voiceHint = document.getElementById('voiceHint');
+  let voiceAudio = null;
+  let lastNoteIdx = -1;
+
+  micBtn.addEventListener('click', ()=>{
+    if(voiceAudio){ voiceAudio.pause(); voiceAudio = null; }
+    let idx = Math.floor(Math.random() * voiceNotes.length);
+    if(voiceNotes.length > 1 && idx === lastNoteIdx){
+      idx = (idx + 1) % voiceNotes.length; // avoid repeating the same note twice in a row
+    }
+    lastNoteIdx = idx;
+    voiceAudio = new Audio(voiceNotes[idx]);
+    micBtn.classList.add('playing');
+    voiceHint.textContent = 'playing…';
+    voiceAudio.addEventListener('ended', ()=>{
+      micBtn.classList.remove('playing');
+      voiceHint.textContent = 'tap the mic';
+    });
+    voiceAudio.play().catch(()=>{
+      micBtn.classList.remove('playing');
+      voiceHint.textContent = "couldn't play — tap again";
+    });
+  });
+
+  /* ---------- register service worker (safe no-op if missing, e.g. in preview) ---------- */
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', ()=>{
+      navigator.serviceWorker.register('sw.js').catch(()=>{ /* fine in preview environments */ });
+    });
+  }
+})();
+</script>
+</body>
+</html>
