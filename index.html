@@ -825,11 +825,13 @@
   document.getElementById('catRight').addEventListener('click', ()=> petCat(document.getElementById('catRight')));
 
   /* ---------- VOICE NOTES ---------- */
-  // File list: placeholders for now — swap these files in sounds/ later and this list
-  // (and the count in manifest below) is the only thing to update.
-  const VOICE_NOTE_COUNT = 16;
+  // File list: swap files in sounds/ (keep the same names) and update VOICE_NOTE_COUNT if the
+  // number of notes changes. Bump VOICE_ASSET_VERSION by 1 every time you replace any audio file
+  // — this forces phones to fetch the new file instead of reusing an old cached copy.
+  const VOICE_NOTE_COUNT = 12;
+  const VOICE_ASSET_VERSION = 2;
   const voiceNotes = Array.from({length: VOICE_NOTE_COUNT}, (_, i) =>
-    `sounds/placeholder_${String(i+1).padStart(2,'0')}.m4a`
+    `sounds/placeholder_${String(i+1).padStart(2,'0')}.m4a?v=${VOICE_ASSET_VERSION}`
   );
 
   const micBtn = document.getElementById('micBtn');
