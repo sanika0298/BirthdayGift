@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Bini App</title>
+<title>Cat Mini-App</title>
 
 <!-- iOS PWA metadata -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -829,7 +829,7 @@
   // (and the count in manifest below) is the only thing to update.
   const VOICE_NOTE_COUNT = 12;
   const voiceNotes = Array.from({length: VOICE_NOTE_COUNT}, (_, i) =>
-    `sounds/placeholder_${String(i+1).padStart(2,'0')}.mp3`
+    `sounds/placeholder_${String(i+1).padStart(2,'0')}.m4a`
   );
 
   const micBtn = document.getElementById('micBtn');
